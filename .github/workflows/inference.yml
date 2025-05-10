@@ -1,0 +1,45 @@
+name: Run Forecasting and Upload Predictions
+
+on:
+  workflow_dispatch:  # Manual trigger for now
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    env:
+      HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+      HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Forecast Lag28
+        run: |
+          python src/forecast/forecast_future_lag28.py
+          python src/upload/upload_future_predictions_lag28.py
+          python src/upload/upload_predictions_lag28.py
+
+      - name: Forecast TopK
+        run: |
+          python src/upload/upload_future_predictions_topk.py
+          python src/upload/upload_predictions_topk.py
+
+      - name: Forecast PCA
+        run: |
+          python src/upload/upload_future_predictions_pca.py
+          python src/upload/upload_predictions_pca.py
+          python src/upload/upload_predictions_pca_csv.py
+
+      - name: Forecast Naive
+        run: |
+          python src/upload/upload_predictions_naive.py
