@@ -1,0 +1,42 @@
+# Core Data Processing
+pandas
+numpy==1.24
+scipy
+requests
+python-dotenv
+
+# Machine Learning
+scikit-learn==1.5.2
+lightgbm
+xgboost
+joblib
+
+# Feature Engineering
+statsmodels
+holidays
+
+# MLOps
+mlflow
+hopsworks==4.2.*
+pyarrow==19.0.1
+
+# Visualization
+matplotlib
+seaborn
+plotly
+
+# Streamlit Dashboard
+streamlit
+streamlit-folium
+pydeck
+watchdog
+
+# Development Tools
+jupyter
+notebook
+black
+flake8
+
+# Testing
+pytest
+pytest-cov
