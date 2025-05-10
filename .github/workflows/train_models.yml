@@ -1,0 +1,46 @@
+name: Train and Register Models
+
+on:
+  workflow_dispatch:  # You can also add 'push:' or a schedule if needed
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    env:
+      HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+      HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Train Baseline Model
+        run: python src/models/baseline_model.py
+
+      - name: Train LightGBM Lag-28 Model
+        run: python src/models/lightgbm_model.py
+
+      - name: Train LightGBM Top-K Model
+        run: python src/models/lightgbm_topk_model.py
+
+      - name: Train LightGBM PCA Model
+        run: python src/models/lightgbm_pca_model.py
+
+      - name: Upload Baseline and TopK Models to Hopsworks
+        run: python src/upload/upload_to_hopsworks_other.py
+
+      - name: Upload Lag28 Model to Hopsworks
+        run: python src/upload/upload_to_hopsworks_best.py
+
+      - name: Upload PCA Model to Hopsworks
+        run: python src/upload/upload_to_hopsworks_pca.py
