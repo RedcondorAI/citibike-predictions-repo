@@ -1,104 +1,87 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+from src.utils.mlflow_logger import set_mlflow_tracking, log_model_to_mlflow
+
 import pandas as pd
 import numpy as np
-import os
 import joblib
-from sklearn.metrics import mean_absolute_error
 from lightgbm import LGBMRegressor
-from mlflow_logger import set_mlflow_tracking, log_model_to_mlflow
+from sklearn.metrics import mean_absolute_error
+import hopsworks
 
-DATA_PATH = "data/processed/jc_hourly_features.csv"
+set_mlflow_tracking()
+
+project = hopsworks.login(
+    project=os.environ["HOPSWORKS_PROJECT_NAME"],
+    api_key_value=os.environ["HOPSWORKS_API_KEY"]
+)
+fs = project.get_feature_store()
+fg = fs.get_feature_group("citibike_features_dataset", version=1)
+df = fg.read()
+
 TOP_STATIONS = ["JC115", "HB102", "HB103"]
 RESULTS_DIR = "data/metrics"
 MODELS_DIR = "trained_models"
 EXPERIMENT_NAME = "citibike-lgbm-topk"
 MODEL_NAME = "LGBMTopK"
 N_LAGS = 28
-TOP_K = 10  # number of top features to select
+TOP_K = 10
+STRATEGY = "lgbm_top_k"
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
-mlflow = set_mlflow_tracking()
-
 
 def create_lag_features(df, n_lags=28):
     for lag in range(1, n_lags + 1):
         df[f"lag_{lag}"] = df["rides"].shift(lag)
     return df
 
-
-def train_topk_model(df, station_id):
+def train_and_log_model(df, station_id):
     station_df = df[df["start_station_id"] == station_id].copy()
     station_df = station_df.sort_values("hour")
-    station_df = create_lag_features(station_df, N_LAGS)
-    station_df = station_df.dropna()
+    station_df = create_lag_features(station_df, N_LAGS).dropna()
 
-    lag_cols = [f"lag_{i}" for i in range(1, N_LAGS + 1)]
-    X_full = station_df[lag_cols]
+    full_features = [f"lag_{i}" for i in range(1, N_LAGS + 1)]
+    X = station_df[full_features]
     y = station_df["rides"]
 
-    split_idx = int(len(X_full) * 0.8)
-    X_train_full, X_test_full = X_full.iloc[:split_idx], X_full.iloc[split_idx:]
-    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    split = int(len(X) * 0.8)
+    X_train, X_test = X.iloc[:split], X.iloc[split:]
+    y_train, y_test = y.iloc[:split], y.iloc[split:]
 
-    # First model to get feature importance
-    lgb_full = LGBMRegressor(random_state=42)
-    lgb_full.fit(X_train_full, y_train)
+    temp_model = LGBMRegressor(random_state=42)
+    temp_model.fit(X_train, y_train)
 
-    # Get top K features
-    importances = lgb_full.feature_importances_
-    topk_idx = np.argsort(importances)[::-1][:TOP_K]
-    topk_features = [lag_cols[i] for i in topk_idx]
+    importance = temp_model.feature_importances_
+    top_k_idx = np.argsort(importance)[-TOP_K:]
+    top_k_features = [full_features[i] for i in top_k_idx]
 
-    # Train new model with top-K features
-    X_train_topk = X_train_full[topk_features]
-    X_test_topk = X_test_full[topk_features]
-
-    model_topk = LGBMRegressor(random_state=42)
-    model_topk.fit(X_train_topk, y_train)
-
-    y_pred = model_topk.predict(X_test_topk)
+    model = LGBMRegressor(random_state=42)
+    model.fit(X_train[top_k_features], y_train)
+    y_pred = model.predict(X_test[top_k_features])
     mae = mean_absolute_error(y_test, y_pred)
-    
-    # Save the model to disk using joblib
-    model_path = f"{MODELS_DIR}/lgbm_topk_model_{station_id}.pkl"
-    joblib.dump(model_topk, model_path)
-    print(f"Model saved to {model_path}")
 
-    # Log to MLflow
-    log_model_to_mlflow(
-        model=model_topk,
-        input_data=X_test_topk,
-        experiment_name=EXPERIMENT_NAME,
-        metric_name="mae",
-        model_name=f"{MODEL_NAME}_{station_id}",
-        params={"top_k": TOP_K, "station_id": station_id},
-        score=mae
-    )
+    joblib.dump(model, f"{MODELS_DIR}/lgbm_topk_model_{station_id}.pkl")
+    log_model_to_mlflow(model, X_test[top_k_features], EXPERIMENT_NAME, "mae",
+                        f"{MODEL_NAME}_{station_id}", mae,
+                        {"station_id": station_id, "strategy": STRATEGY, "top_k": TOP_K})
 
-    # Save predictions
-    preds_df = pd.DataFrame({
-        "hour": station_df.iloc[split_idx:]["hour"].values,
-        "actual_rides": y_test.values,
+    pd.DataFrame({
+        "hour": station_df.iloc[split:]["hour"],
+        "actual_rides": y_test,
         "predicted_rides": y_pred
-    })
-    preds_df.to_csv(f"{RESULTS_DIR}/predictions_lgbm_topk_{station_id}.csv", index=False)
+    }).to_csv(f"{RESULTS_DIR}/lgbm_topk_{station_id}.csv", index=False)
 
     return mae
 
-
 def main():
-    df = pd.read_csv(DATA_PATH, parse_dates=["hour"])
     results = []
-
     for station_id in TOP_STATIONS:
-        mae = train_topk_model(df, station_id)
-        results.append({"station_id": station_id, "model": MODEL_NAME, "mae": mae})
-
-    results_df = pd.DataFrame(results)
-    results_df.to_csv(f"{RESULTS_DIR}/lgbm_topk_mae_summary.csv", index=False)
-    print("\nLightGBM Top-K MAE Results:")
-    print(results_df)
-
+        mae = train_and_log_model(df, station_id)
+        results.append({"station_id": station_id, "model": MODEL_NAME, "strategy": STRATEGY, "mae": mae})
+    pd.DataFrame(results).to_csv(f"{RESULTS_DIR}/lgbm_topk_mae_summary.csv", index=False)
 
 if __name__ == "__main__":
     main()
