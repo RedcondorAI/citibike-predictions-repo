@@ -19,5 +19,5 @@ fg = fs.get_or_create_feature_group(
     event_time=None
 )
 
-fg.insert(df, write_options={"wait_for_job": True})
+fg.insert(df, write_options={"wait_for_job": True, "write_mode": "overwrite"})
 print("✅ Lag28 metrics uploaded to Hopsworks.")

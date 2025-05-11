@@ -19,7 +19,7 @@ def upload_metrics(file_name, fg_name, version=1):
         primary_key=["station_id"],
         event_time=None
     )
-    fg.insert(df, write_options={"wait_for_job": True})
+    fg.insert(df, write_options={"wait_for_job": True, "write_mode": "overwrite"})
 
 upload_metrics("data/metrics/baseline_mae_summary.csv", "citibike_model_metrics_baseline")
 upload_metrics("data/metrics/lgbm_topk_mae_summary.csv", "citibike_model_metrics_topk")

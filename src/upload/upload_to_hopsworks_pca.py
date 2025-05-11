@@ -14,10 +14,10 @@ df = pd.read_csv("data/metrics/lgbm_pca_mae_summary.csv")
 fg = fs.get_or_create_feature_group(
     name="citibike_model_metrics_pca",
     version=1,
-    description="MAE + explained variance from PCA model",
+    description="MAE and explained variance from PCA model",
     primary_key=["station_id"],
     event_time=None
 )
 
-fg.insert(df, write_options={"wait_for_job": True})
-print("✅ PCA model metrics uploaded to Hopsworks.")
+fg.insert(df, write_options={"wait_for_job": True, "write_mode": "overwrite"})
+print("✅ PCA metrics uploaded to Hopsworks.")
