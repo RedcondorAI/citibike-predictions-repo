@@ -7,16 +7,18 @@ import hopsworks
 # ---------------- CONFIG ----------------
 TOP_STATIONS = ["JC115", "HB102", "HB103"]
 METRICS_PATH = "data/metrics"
-MODELS_PATH = "trained_models"
 N_LAGS = 28
 TOP_K = 10
 
 # ---------------- SETUP ----------------
 os.makedirs(METRICS_PATH, exist_ok=True)
 
-# Connect to Hopsworks and load feature group
+# Connect to Hopsworks
 project = hopsworks.login()
 fs = project.get_feature_store()
+mr = project.get_model_registry()
+
+# Load feature group data
 fg = fs.get_feature_group("citibike_features_dataset", version=1)
 df = fg.read()
 
@@ -37,23 +39,25 @@ for station in TOP_STATIONS:
     y = station_df["rides"]
     split = int(len(X) * 0.8)
 
-    X_test, y_test = X.iloc[split:], y.iloc[split:]
-    model_path = f"{MODELS_PATH}/lgbm_topk_model_{station}.pkl"
+    X_train, X_test = X.iloc[:split], X.iloc[split:]
+    y_test = y.iloc[split:]
 
-    if not os.path.exists(model_path):
-        print(f"❌ Model not found for {station}: {model_path}")
-        continue
+    # Load model from Hopsworks model registry
+    model_name = f"citibike_topk_{station}"
+    model_obj = mr.get_model(model_name, version=None)
+    model_dir = model_obj.download()
+    model = joblib.load(os.path.join(model_dir, "model.pkl"))
 
-    model = joblib.load(model_path)
+    # Determine Top K features based on training importance
     importances = model.feature_importances_
-    top_k_idx = np.argsort(importances)[-TOP_K:]
-    top_k_features = [X.columns[i] for i in top_k_idx]
+    top_k_indices = np.argsort(importances)[-TOP_K:]
+    top_k_features = X_train.columns[top_k_indices]
 
     y_pred = model.predict(X_test[top_k_features])
 
     out_df = pd.DataFrame({
         "hour": station_df.iloc[split:]["hour"],
-        "actual_rides": y_test,
+        "actual_rides": y_test.values,
         "predicted_rides": y_pred
     })
 

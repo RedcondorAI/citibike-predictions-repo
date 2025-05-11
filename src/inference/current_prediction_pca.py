@@ -8,17 +8,19 @@ from sklearn.decomposition import PCA
 # ---------------- CONFIG ----------------
 TOP_STATIONS = ["JC115", "HB102", "HB103"]
 METRICS_PATH = "data/metrics"
-MODELS_PATH = "trained_models"
 N_LAGS = 28
 PCA_COMPONENTS = 10
 
 # ---------------- SETUP ----------------
 os.makedirs(METRICS_PATH, exist_ok=True)
 
-# Connect to Hopsworks and load feature group
+# Connect to Hopsworks
 project = hopsworks.login()
 fs = project.get_feature_store()
-fg = fs.get_feature_group("citibike_features_dataset", version=1)
+mr = project.get_model_registry()
+
+# Load feature group data
+fg = fs.get_feature_group("citibike_features_dataset", version=None)
 df = fg.read()
 
 # ---------------- HELPERS ----------------
@@ -38,17 +40,16 @@ for station in TOP_STATIONS:
     y = station_df["rides"]
     split = int(len(X) * 0.8)
 
-    X_train = X.iloc[:split]
-    X_test, y_test = X.iloc[split:], y.iloc[split:]
+    X_train, X_test = X.iloc[:split], X.iloc[split:]
+    y_test = y.iloc[split:]
 
-    model_path = f"{MODELS_PATH}/lgbm_pca_model_{station}.pkl"
+    # Load PCA model from Hopsworks Model Registry
+    model_name = f"citibike_pca_{station}"
+    model_obj = mr.get_model(model_name, version=None)
+    model_dir = model_obj.download()
+    model = joblib.load(os.path.join(model_dir, "model.pkl"))
 
-    if not os.path.exists(model_path):
-        print(f"❌ Model not found for {station}: {model_path}")
-        continue
-
-    model = joblib.load(model_path)
-
+    # Apply PCA (fit on train, transform test)
     pca = PCA(n_components=PCA_COMPONENTS)
     pca.fit(X_train)
     X_test_pca = pca.transform(X_test)
@@ -57,7 +58,7 @@ for station in TOP_STATIONS:
 
     out_df = pd.DataFrame({
         "hour": station_df.iloc[split:]["hour"],
-        "actual_rides": y_test,
+        "actual_rides": y_test.values,
         "predicted_rides": y_pred
     })
 
