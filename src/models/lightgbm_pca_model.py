@@ -90,7 +90,7 @@ def train_pca_model(df, station_id):
         "hour": station_df.iloc[split_idx:]["hour"],
         "actual_rides": y_test,
         "predicted_rides": y_pred
-    }).to_csv(f"{RESULTS_DIR}/lgbm_pca_{station_id}.csv", index=False)
+    }).to_csv(f"{RESULTS_DIR}/predictions_lgbm_pca_{station_id}.csv", index=False)
 
     return mae, explained_variance
 

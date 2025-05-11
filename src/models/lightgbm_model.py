@@ -75,7 +75,7 @@ def train_and_log_model(df, station_id):
         "hour": station_df.iloc[split:]["hour"],
         "actual_rides": y_test,
         "predicted_rides": y_pred
-    }).to_csv(f"{RESULTS_DIR}/lgbm_lag28_{station_id}.csv", index=False)
+    }).to_csv(f"{RESULTS_DIR}/predictions_lgbm_lag28_{station_id}.csv", index=False)
 
     return mae
 
