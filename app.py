@@ -11,7 +11,7 @@ st.set_page_config(page_title="Citi Bike Forecast Dashboard", layout="wide")
 project = hopsworks.login(
     project=os.environ["HOPSWORKS_PROJECT_NAME"],
     api_key_value=os.environ["HOPSWORKS_API_KEY"],
-    host="https://c.app.hopsworks.ai"
+    host="c.app.hopsworks.ai"
 )
 fs = project.get_feature_store()
 
