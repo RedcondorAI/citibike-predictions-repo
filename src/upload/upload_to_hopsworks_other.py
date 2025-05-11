@@ -18,12 +18,10 @@ def upload_metrics(file_name, fg_name, version=1):
         version=version,
         description=f"{fg_name} MAE summary",
         primary_key=["station_id"],
-        event_time=None,
-        online_enabled=False,
-        storage_connector="Offline"
+        event_time=None  # no timestamp, this is batch summary
     )
 
-    fg.insert(df, write_options={"wait_for_job": True, "write_mode": "overwrite"})
+    fg.insert(df, write_options={"wait_for_job": True})
     print(f"✅ Uploaded to {fg_name}")
 
 upload_metrics("data/metrics/baseline_mae_summary.csv", "citibike_model_metrics_baseline")

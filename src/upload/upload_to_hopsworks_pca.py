@@ -16,10 +16,8 @@ fg = fs.get_or_create_feature_group(
     version=1,
     description="MAE and explained variance for PCA model",
     primary_key=["station_id"],
-    event_time=None,
-    online_enabled=False,
-    storage_connector="Offline"
+    event_time=None
 )
 
-fg.insert(df, write_options={"wait_for_job": True, "write_mode": "overwrite"})
+fg.insert(df, write_options={"wait_for_job": True})
 print("✅ PCA metrics uploaded to Hopsworks.")
