@@ -42,9 +42,11 @@ for station in TOP_STATIONS:
 
     # Load model from Hopsworks model registry
     model_name = f"citibike_lag28_{station}"
-    model_obj = mr.get_model(model_name, version=None)  # use latest version
+    all_versions = mr.get_all_model_versions(model_name)
+    model_obj = sorted(all_versions, key=lambda m: m.version)[-1] # use latest version
     model_dir = model_obj.download()
     model = joblib.load(os.path.join(model_dir, "model.pkl"))
+
 
     y_pred = model.predict(X_test)
 
