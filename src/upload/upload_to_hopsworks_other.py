@@ -7,7 +7,6 @@ project = hopsworks.login(
     project=os.environ["HOPSWORKS_PROJECT_NAME"],
     api_key_value=os.environ["HOPSWORKS_API_KEY"]
 )
-
 fs = project.get_feature_store()
 
 def upload_metrics(file_name, fg_name, version=1):
@@ -21,7 +20,7 @@ def upload_metrics(file_name, fg_name, version=1):
         primary_key=["station_id"],
         event_time=None,
         online_enabled=False,
-        storage_connector="Offline"  # ✅ THIS FIXES IT
+        storage_connector="Offline"
     )
 
     fg.insert(df, write_options={"wait_for_job": True, "write_mode": "overwrite"})
