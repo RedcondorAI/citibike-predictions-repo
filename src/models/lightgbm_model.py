@@ -55,9 +55,21 @@ def train_and_log_model(df, station_id):
     mae = mean_absolute_error(y_test, y_pred)
 
     joblib.dump(model, f"{MODELS_DIR}/lgbm_lag28_model_{station_id}.pkl")
-    log_model_to_mlflow(model, X_test, EXPERIMENT_NAME, "mae",
-                        f"{MODEL_NAME}_{station_id}", mae,
-                        {"station_id": station_id, "strategy": STRATEGY, "n_lags": N_LAGS})
+
+    # ✅ FIXED: Make sure all values passed to MLflow are native Python types
+    log_model_to_mlflow(
+        model=model,
+        input_data=X_test,
+        experiment_name=EXPERIMENT_NAME,
+        metric_name="mae",
+        model_name=f"{MODEL_NAME}_{station_id}",
+        score=float(mae),  # Convert from np.float64
+        params={
+            "station_id": station_id,
+            "strategy": STRATEGY,
+            "n_lags": int(N_LAGS)
+        }
+    )
 
     pd.DataFrame({
         "hour": station_df.iloc[split:]["hour"],
@@ -71,7 +83,12 @@ def main():
     results = []
     for station_id in TOP_STATIONS:
         mae = train_and_log_model(df, station_id)
-        results.append({"station_id": station_id, "model": MODEL_NAME, "strategy": STRATEGY, "mae": mae})
+        results.append({
+            "station_id": station_id,
+            "model": MODEL_NAME,
+            "strategy": STRATEGY,
+            "mae": float(mae)
+        })
     pd.DataFrame(results).to_csv(f"{RESULTS_DIR}/lgbm_lag28_mae_summary.csv", index=False)
 
 if __name__ == "__main__":
