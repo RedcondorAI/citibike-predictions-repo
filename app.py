@@ -5,7 +5,7 @@ import plotly.express as px
 import hopsworks
 
 # ---------- SETUP ----------
-st.set_page_config(page_title="Citi Bike Dashboard", layout="wide")
+st.set_page_config(page_title="Citi Bike Forecast Dashboard", layout="wide")
 
 # ---------- CUSTOM CSS ----------
 st.markdown("""
@@ -46,7 +46,7 @@ project = hopsworks.login(
 )
 fs = project.get_feature_store()
 
-# ---------- FEATURE GROUP FETCHING ----------
+# ---------- FEATURE GROUP LOADER ----------
 @st.cache_data(ttl=3600)
 def load_fg(name: str, version: int = 1):
     return fs.get_feature_group(name=name, version=version).read()
@@ -57,21 +57,20 @@ models = {
     "PCA":    {"pred": "citibike_predictions_pca",   "forecast": "citibike_forecast_pca",   "mae": "citibike_model_metrics_pca"}
 }
 
-# ---------- UI: TAB + SELECTORS ----------
+# ---------- UI ----------
 st.title("🚲 Citi Bike Forecast Dashboard")
 
 with st.container():
     st.markdown("##")
-    tab = st.radio("Choose View", ["Prediction vs Actual", "Future Forecast", "MAE Summary"], horizontal=True, key="tabs", label_visibility="collapsed")
+    tab = st.radio("Choose View", ["Prediction vs Actual", "Future Forecast", "MAE Summary"], horizontal=True, label_visibility="collapsed")
     model_option = st.selectbox("Choose Model", list(models.keys()))
     station_option = st.selectbox("Choose Station", ["JC115", "HB102", "HB103"])
 
-# ---------- DATA LOAD ----------
+# ---------- LOAD + FILTER DATA ----------
 df_pred = load_fg(models[model_option]["pred"])
 df_fore = load_fg(models[model_option]["forecast"])
 df_mae  = load_fg(models[model_option]["mae"])
 
-# ---------- FILTER ----------
 df_pred = df_pred[df_pred["station_id"] == station_option]
 df_fore = df_fore[df_fore["station_id"] == station_option]
 mae_val = df_mae[df_mae["station_id"] == station_option]["mae"].values[0]
@@ -79,13 +78,33 @@ mae_val = df_mae[df_mae["station_id"] == station_option]["mae"].values[0]
 # ---------- VIEWS ----------
 if tab == "Prediction vs Actual":
     st.subheader(f"📊 Historical: {model_option} — {station_option} (MAE: {mae_val:.2f})")
-    fig = px.line(df_pred, x="hour", y="actual_rides", title="Actual vs Predicted", labels={"hour": "Time", "value": "Rides"})
-    fig.add_scatter(x=df_pred["hour"], y=df_pred["predicted_rides"], mode='lines', name="Predicted")
+
+    # Group to avoid clutter
+    df_plot = df_pred.groupby("hour")[["actual_rides", "predicted_rides"]].mean().reset_index()
+
+    fig = px.line(
+        df_plot,
+        x="hour",
+        y="actual_rides",
+        title="Actual vs Predicted",
+        labels={"actual_rides": "Rides", "hour": "Time"}
+    )
+    fig.add_scatter(
+        x=df_plot["hour"],
+        y=df_plot["predicted_rides"],
+        mode='lines',
+        name="Predicted"
+    )
+    fig.update_layout(
+        xaxis=dict(tickformat="%b %Y", tickangle=0, dtick="M1"),
+        hovermode="x unified"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 elif tab == "Future Forecast":
     st.subheader(f"🔮 Forecast: {model_option} — {station_option}")
-    fig = px.line(df_fore, x="hour", y="predicted_rides", title="Future Forecast (Next 168 Hours)", labels={"hour": "Future Time", "predicted_rides": "Rides"})
+    fig = px.line(df_fore, x="hour", y="predicted_rides", labels={"predicted_rides": "Rides", "hour": "Time"}, title="Future Forecast (Next 168 Hours)")
+    fig.update_layout(xaxis=dict(tickformat="%b %d", tickangle=45))
     st.plotly_chart(fig, use_container_width=True)
 
 elif tab == "MAE Summary":
