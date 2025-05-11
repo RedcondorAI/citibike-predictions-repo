@@ -144,15 +144,26 @@ except Exception as e:
 if selected_tab == "Historical Predictions":
     st.subheader(f"📊 Historical: {model_option} Model")
     
-    # Group data by day to reduce data points
-    # Convert to datetime if not already done
+    # Ensure hour is datetime and handle missing/non-numeric values
     if not pd.api.types.is_datetime64_dtype(df_pred["hour"]):
-        df_pred["hour"] = pd.to_datetime(df_pred["hour"])
+        df_pred["hour"] = pd.to_datetime(df_pred["hour"], errors='coerce')
     
-    # Resample to daily data to avoid overcrowding
-    df_daily = df_pred.set_index("hour").resample("D").mean().reset_index()
+    # Drop rows with NaT values in hour
+    df_pred = df_pred.dropna(subset=["hour"])
     
-    # Smooth data for better visualization
+    # Extract date only for daily grouping
+    df_pred["date"] = df_pred["hour"].dt.date
+    
+    # Group by date (more resilient than resample)
+    df_daily = df_pred.groupby("date").agg({
+        "predicted_rides": "mean",
+        "actual_rides": "mean"
+    }).reset_index()
+    
+    # Convert date back to datetime for plotting
+    df_daily["hour"] = pd.to_datetime(df_daily["date"])
+    
+    # Prepare for plotting
     df_plot = df_daily.copy()
     df_plot["Predicted Rides"] = df_plot["predicted_rides"]
     df_plot["Actual Rides"] = df_plot["actual_rides"]
@@ -217,13 +228,22 @@ elif selected_tab == "Future Forecast":
     
     # Make sure the date is in datetime format
     if not pd.api.types.is_datetime64_dtype(df_fore["hour"]):
-        df_fore["hour"] = pd.to_datetime(df_fore["hour"])
+        df_fore["hour"] = pd.to_datetime(df_fore["hour"], errors='coerce')
     
-    # Group forecasts by 6-hour intervals to reduce clutter
-    df_fore_grouped = df_fore.copy()
-    df_fore_grouped["hour_group"] = df_fore_grouped["hour"].dt.floor("6H")
-    df_fore_agg = df_fore_grouped.groupby("hour_group")["predicted_rides"].mean().reset_index()
-    df_fore_agg = df_fore_agg.rename(columns={"hour_group": "hour"})
+    # Drop rows with invalid datetime
+    df_fore = df_fore.dropna(subset=["hour"])
+
+    # Create 6-hour bins for aggregation
+    df_fore["hour_bin"] = df_fore["hour"].dt.floor("6H")
+    
+    # Group by 6-hour intervals 
+    df_fore_agg = df_fore.groupby("hour_bin").agg({
+        "predicted_rides": "mean",
+        "station_id": "first"  # Keep the station ID
+    }).reset_index()
+    
+    # Rename columns for clarity
+    df_fore_agg = df_fore_agg.rename(columns={"hour_bin": "hour"})
     
     fig = px.line(
         df_fore_agg,
@@ -274,9 +294,15 @@ elif selected_tab == "Model Summary":
     # Get all model metrics for comparison
     all_mae_data = []
     for model_name, model_info in MODELS.items():
+        # Add try/except blocks to handle potential errors
         try:
             mae_df = load_fg(model_info["mae"])
             station_data = mae_df[mae_df["station_id"] == station].copy()
+            
+            # Skip if no data for this station
+            if len(station_data) == 0:
+                continue
+                
             station_data["model"] = model_name
             all_mae_data.append(station_data)
         except Exception as e:
