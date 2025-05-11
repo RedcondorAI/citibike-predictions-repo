@@ -162,22 +162,22 @@ def load_timeseries_predictions(is_forecast, station):
 # ---------- Main App ----------
 def main():
     # Add an expander for debugging connection information
-    with st.expander("Connection Information", expanded=False):
-        st.markdown("""
-        ### Hopsworks Connection
-        This app connects to Hopsworks for data retrieval. Make sure you have set the following environment variables:
-        - `HOPSWORKS_PROJECT_NAME`
-        - `HOPSWORKS_API_KEY`
+    # with st.expander("Connection Information", expanded=False):
+    #     st.markdown("""
+    #     ### Hopsworks Connection
+    #     This app connects to Hopsworks for data retrieval. Make sure you have set the following environment variables:
+    #     - `HOPSWORKS_PROJECT_NAME`
+    #     - `HOPSWORKS_API_KEY`
         
-        If you're experiencing connection issues, check your API key and project name.
-        """)
+    #     If you're experiencing connection issues, check your API key and project name.
+    #     """)
         
-        if st.button("Test Hopsworks Connection"):
-            try:
-                project = get_hopsworks_connection()
-                st.success(f"✅ Successfully connected to Hopsworks project: {project.name}")
-            except Exception as e:
-                st.error(f"❌ Connection failed: {str(e)}")
+    #     if st.button("Test Hopsworks Connection"):
+    #         try:
+    #             project = get_hopsworks_connection()
+    #             st.success(f"✅ Successfully connected to Hopsworks project: {project.name}")
+    #         except Exception as e:
+    #             st.error(f"❌ Connection failed: {str(e)}")
     
     metrics_dict = load_all_metrics()
     if not metrics_dict:
