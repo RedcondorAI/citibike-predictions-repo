@@ -1,7 +1,9 @@
 name: Train and Register Models
 
 on:
-  workflow_dispatch:  # You can also add 'push:' or a schedule if needed
+  schedule:
+    - cron: '0 6 * * *'   # Every day at 6 AM UTC
+  workflow_dispatch:      # You can still trigger manually
 
 jobs:
   train:

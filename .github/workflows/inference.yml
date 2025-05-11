@@ -1,7 +1,9 @@
 name: Run Forecasting and Upload Predictions
 
 on:
-  workflow_dispatch:  # Trigger manually for now
+  schedule:
+    - cron: '0 7 * * *'   # Every day at 7 AM UTC
+  workflow_dispatch:      # Still supports manual run
 
 jobs:
   forecast:
