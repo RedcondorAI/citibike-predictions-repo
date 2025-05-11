@@ -3,70 +3,70 @@ import pandas as pd
 import numpy as np
 import joblib
 from datetime import timedelta
+import hopsworks
 
-# Constants
-DATA_PATH = "data/processed/jc_hourly_features.csv"
-MODEL_DIR = "trained_models"
-OUTPUT_DIR = "data/metrics"
-FORECAST_HORIZON = 168  # 7 days hourly
+# ---------------- CONFIG ----------------
 TOP_STATIONS = ["JC115", "HB102", "HB103"]
+METRICS_PATH = "data/metrics"
+MODELS_PATH = "trained_models"
 N_LAGS = 28
+FUTURE_PERIODS = 168  # 7 days ahead, hourly
 TOP_K = 10
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# ---------------- SETUP ----------------
+os.makedirs(METRICS_PATH, exist_ok=True)
 
-def create_lag_features(series, topk_cols):
-    """Build a feature DataFrame with top-K lag columns using the latest values."""
-    return pd.DataFrame({col: [series[-int(col.split('_')[1])]] for col in topk_cols})
+# Connect to Hopsworks and load feature group
+project = hopsworks.login()
+fs = project.get_feature_store()
+fg = fs.get_feature_group("citibike_features_dataset", version=1)
+df = fg.read()
 
-def forecast_future_rides_topk(station_id):
-    # Load data
-    df = pd.read_csv(DATA_PATH, parse_dates=["hour"])
-    df = df[df["start_station_id"] == station_id].sort_values("hour")
-    lag_series = df["rides"].values[-N_LAGS:]
+# ---------------- HELPERS ----------------
+def create_lag_features(df, n_lags):
+    for lag in range(1, n_lags + 1):
+        df[f"lag_{lag}"] = df["rides"].shift(lag)
+    return df
 
-    # Load model
-    model_path = os.path.join(MODEL_DIR, f"lgbm_topk_model_{station_id}.pkl")
+# ---------------- MAIN ----------------
+for station_id in TOP_STATIONS:
+    print(f"🔮 Forecasting next {FUTURE_PERIODS} hours for {station_id} (TopK model)...")
+
+    station_df = df[df["start_station_id"] == station_id].sort_values("hour").copy()
+    station_df = create_lag_features(station_df, N_LAGS).dropna()
+
+    latest = station_df.iloc[-N_LAGS:].copy()
+    model_path = f"{MODELS_PATH}/lgbm_topk_model_{station_id}.pkl"
+
     if not os.path.exists(model_path):
-        print(f"❌ Model not found for {station_id}")
-        return
+        print(f"❌ Model not found for {station_id}: {model_path}")
+        continue
 
     model = joblib.load(model_path)
+    importances = model.feature_importances_
+    top_k_idx = np.argsort(importances)[-TOP_K:]
+    top_k_features = [f"lag_{i}" for i in range(1, N_LAGS + 1)]
+    top_k_features = [top_k_features[i] for i in top_k_idx]
 
-    # Get top-K columns from model booster if available
-    booster = model.booster_
-    importance_df = pd.DataFrame({
-        "feature": booster.feature_name(),
-        "importance": booster.feature_importance()
-    }).sort_values("importance", ascending=False)
-    topk_cols = importance_df.head(TOP_K)["feature"].tolist()
+    predictions = []
+    last_timestamp = latest["hour"].max()
 
-    # Forecast
-    last_time = df["hour"].max()
-    predictions, timestamps = [], []
-    recent = lag_series.copy()
+    for _ in range(FUTURE_PERIODS):
+        last_timestamp += timedelta(hours=1)
+        last_lags = latest.tail(N_LAGS)["rides"].values[::-1]
+        input_df = pd.DataFrame([last_lags], columns=[f"lag_{i}" for i in range(1, N_LAGS + 1)])
+        input_df = input_df[top_k_features]
+        pred = model.predict(input_df)[0]
 
-    for i in range(FORECAST_HORIZON):
-        X_input = create_lag_features(recent, topk_cols)
-        pred = model.predict(X_input)[0]
-        future_time = last_time + timedelta(hours=i + 1)
+        predictions.append({
+            "hour": last_timestamp,
+            "predicted_rides": pred
+        })
 
-        timestamps.append(future_time)
-        predictions.append(pred)
-        recent = np.append(recent[1:], pred)
+        new_row = {"hour": last_timestamp, "rides": pred}
+        latest = pd.concat([latest, pd.DataFrame([new_row])], ignore_index=True)
 
-    # Save output
-    out_path = os.path.join(OUTPUT_DIR, f"future_lgbm_topk_{station_id}.csv")
-    forecast_df = pd.DataFrame({
-        "hour": timestamps,
-        "predicted_rides": predictions
-    })
-    forecast_df.to_csv(out_path, index=False)
-    print(f"✅ Forecast saved: {out_path}")
-
-def main():
-    for station in TOP_STATIONS:
-        forecast_future_rides_topk(station)
-
-if __name__ == "__main__":
-    main()
+    out_df = pd.DataFrame(predictions)
+    out_file = f"{METRICS_PATH}/future_lgbm_topk_{station_id}.csv"
+    out_df.to_csv(out_file, index=False)
+    print(f"✅ Saved: {out_file}")

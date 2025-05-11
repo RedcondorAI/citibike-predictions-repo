@@ -3,67 +3,72 @@ import pandas as pd
 import numpy as np
 import joblib
 from datetime import timedelta
+from sklearn.decomposition import PCA
+import hopsworks
 
-# Constants
-DATA_PATH = "data/processed/jc_hourly_features.csv"
-MODEL_DIR = "trained_models"
-OUTPUT_DIR = "data/metrics"
-FORECAST_HORIZON = 168  # 7 days
-N_LAGS = 28
+# ---------------- CONFIG ----------------
 TOP_STATIONS = ["JC115", "HB102", "HB103"]
+METRICS_PATH = "data/metrics"
+MODELS_PATH = "trained_models"
+N_LAGS = 28
+FUTURE_PERIODS = 168  # 7 days ahead
+PCA_COMPONENTS = 10
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# ---------------- SETUP ----------------
+os.makedirs(METRICS_PATH, exist_ok=True)
 
-def create_lag_feature_df(lag_values):
-    """Creates a DataFrame of shape (1, N_LAGS) with lag_1 to lag_28."""
-    return pd.DataFrame({f"lag_{i+1}": [lag_values[-(i+1)]] for i in range(N_LAGS)})
+# Connect to Hopsworks and load feature group
+project = hopsworks.login()
+fs = project.get_feature_store()
+fg = fs.get_feature_group("citibike_features_dataset", version=1)
+df = fg.read()
 
-def forecast_pca_model(station_id):
-    # Load historical data
-    df = pd.read_csv(DATA_PATH, parse_dates=["hour"])
-    df = df[df["start_station_id"] == station_id].sort_values("hour")
-    lag_series = df["rides"].values[-N_LAGS:]
+# ---------------- HELPERS ----------------
+def create_lag_features(df, n_lags):
+    for lag in range(1, n_lags + 1):
+        df[f"lag_{lag}"] = df["rides"].shift(lag)
+    return df
 
-    # Paths to model and PCA
-    model_dir = os.path.join(MODEL_DIR, f"pca_model_{station_id}")
-    model_path = os.path.join(model_dir, "lgbm_model.pkl")
-    pca_path = os.path.join(model_dir, "pca_transformer.pkl")
+# ---------------- MAIN ----------------
+for station_id in TOP_STATIONS:
+    print(f"🔮 Forecasting next {FUTURE_PERIODS} hours for {station_id} (PCA model)...")
 
-    if not os.path.exists(model_path) or not os.path.exists(pca_path):
-        print(f"❌ Missing PCA model or transformer for {station_id}")
-        return
+    station_df = df[df["start_station_id"] == station_id].sort_values("hour").copy()
+    station_df = create_lag_features(station_df, N_LAGS).dropna()
+
+    latest = station_df.iloc[-N_LAGS:].copy()
+    model_path = f"{MODELS_PATH}/lgbm_pca_model_{station_id}.pkl"
+
+    if not os.path.exists(model_path):
+        print(f"❌ Model not found for {station_id}: {model_path}")
+        continue
 
     model = joblib.load(model_path)
-    pca = joblib.load(pca_path)
 
-    # Forecast
-    last_time = df["hour"].max()
-    predictions, timestamps = [], []
-    recent = lag_series.copy()
+    X_full = station_df[[f"lag_{i}" for i in range(1, N_LAGS + 1)]]
+    pca = PCA(n_components=PCA_COMPONENTS)
+    pca.fit(X_full)
 
-    for i in range(FORECAST_HORIZON):
-        X_input = create_lag_feature_df(recent)
-        X_pca = pca.transform(X_input)
+    predictions = []
+    last_timestamp = latest["hour"].max()
 
-        pred = model.predict(X_pca)[0]
-        future_time = last_time + timedelta(hours=i + 1)
+    for _ in range(FUTURE_PERIODS):
+        last_timestamp += timedelta(hours=1)
+        last_lags = latest.tail(N_LAGS)["rides"].values[::-1]
+        input_df = pd.DataFrame([last_lags], columns=[f"lag_{i}" for i in range(1, N_LAGS + 1)])
+        input_pca = pca.transform(input_df)
 
-        timestamps.append(future_time)
-        predictions.append(pred)
-        recent = np.append(recent[1:], pred)
+        pred = model.predict(input_pca)[0]
 
-    # Save forecast
-    forecast_df = pd.DataFrame({
-        "hour": timestamps,
-        "predicted_rides": predictions
-    })
-    out_path = os.path.join(OUTPUT_DIR, f"future_lgbm_pca_{station_id}.csv")
-    forecast_df.to_csv(out_path, index=False)
-    print(f"✅ Saved PCA forecast for {station_id} to {out_path}")
+        predictions.append({
+            "hour": last_timestamp,
+            "predicted_rides": pred
+        })
 
-def main():
-    for station_id in TOP_STATIONS:
-        forecast_pca_model(station_id)
+        new_row = {"hour": last_timestamp, "rides": pred}
+        latest = pd.concat([latest, pd.DataFrame([new_row])], ignore_index=True)
 
-if __name__ == "__main__":
-    main()
+    out_df = pd.DataFrame(predictions)
+    out_file = f"{METRICS_PATH}/future_lgbm_pca_{station_id}.csv"
+    out_df.to_csv(out_file, index=False)
+    print(f"✅ Saved: {out_file}")

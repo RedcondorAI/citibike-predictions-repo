@@ -1,68 +1,65 @@
 import os
 import pandas as pd
+import numpy as np
 import joblib
 from datetime import timedelta
+import hopsworks
 
-# Constants
-DATA_PATH = "data/processed/jc_hourly_features.csv"
-MODEL_DIR = "trained_models"
-OUTPUT_DIR = "data/metrics"
-FORECAST_HORIZON = 168  # e.g., 7 days of hourly predictions
-N_LAGS = 28
+# ---------------- CONFIG ----------------
 TOP_STATIONS = ["JC115", "HB102", "HB103"]
+METRICS_PATH = "data/metrics"
+MODELS_PATH = "trained_models"
+N_LAGS = 28
+FUTURE_PERIODS = 168  # 7 days ahead, hourly
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# ---------------- SETUP ----------------
+os.makedirs(METRICS_PATH, exist_ok=True)
 
-def create_lag_features(series, n_lags):
-    arr = series.to_numpy()
-    data = {f"lag_{i+1}": [arr[-(i+1)]] for i in range(n_lags)}
-    return pd.DataFrame(data)
+# Connect to Hopsworks and load feature group
+project = hopsworks.login()
+fs = project.get_feature_store()
+fg = fs.get_feature_group("citibike_features_dataset", version=1)
+df = fg.read()
 
+# ---------------- HELPERS ----------------
+def create_lag_features(df, n_lags):
+    for lag in range(1, n_lags + 1):
+        df[f"lag_{lag}"] = df["rides"].shift(lag)
+    return df
 
+# ---------------- MAIN ----------------
+for station_id in TOP_STATIONS:
+    print(f"🔮 Forecasting next {FUTURE_PERIODS} hours for {station_id} (Lag-28 model)...")
 
-def forecast_future_rides(station_id):
-    # Load latest processed data
-    df = pd.read_csv(DATA_PATH, parse_dates=["hour"])
-    df = df[df["start_station_id"] == station_id].sort_values("hour")
+    station_df = df[df["start_station_id"] == station_id].sort_values("hour").copy()
+    station_df = create_lag_features(station_df, N_LAGS).dropna()
 
-    # Extract recent lags
-    latest_series = df["rides"].values
-    recent_lags = latest_series[-N_LAGS:]
-    timestamps = []
-    predictions = []
+    latest = station_df.iloc[-N_LAGS:].copy()
+    model_path = f"{MODELS_PATH}/lgbm_lag28_model_{station_id}.pkl"
 
-    # Load model
-    model_path = os.path.join(MODEL_DIR, f"lgbm_lag28_model_{station_id}.pkl")
     if not os.path.exists(model_path):
-        print(f"❌ Model not found for {station_id}")
-        return
-    model = joblib.load(model_path)
+        print(f"❌ Model not found for {station_id}: {model_path}")
+        continue
 
-    # Generate future timestamps
-    last_time = df["hour"].max()
-    for i in range(FORECAST_HORIZON):
-        input_df = create_lag_features(pd.Series(recent_lags), N_LAGS)
+    model = joblib.load(model_path)
+    predictions = []
+    last_timestamp = latest["hour"].max()
+
+    for _ in range(FUTURE_PERIODS):
+        last_timestamp += timedelta(hours=1)
+        last_lags = latest.tail(N_LAGS)["rides"].values[::-1]
+        input_df = pd.DataFrame([last_lags], columns=[f"lag_{i}" for i in range(1, N_LAGS + 1)])
         pred = model.predict(input_df)[0]
 
-        # Store prediction
-        future_time = last_time + timedelta(hours=i + 1)
-        timestamps.append(future_time)
-        predictions.append(pred)
+        predictions.append({
+            "hour": last_timestamp,
+            "predicted_rides": pred
+        })
 
-        # Update lags
-        recent_lags = list(recent_lags[1:]) + [pred]
+        new_row = {"hour": last_timestamp, "rides": pred}
+        latest = pd.concat([latest, pd.DataFrame([new_row])], ignore_index=True)
 
-    # Save results
-    forecast_df = pd.DataFrame({
-        "hour": timestamps,
-        "predicted_rides": predictions
-    })
-    forecast_df.to_csv(os.path.join(OUTPUT_DIR, f"future_lgbm_lag28_{station_id}.csv"), index=False)
-    print(f"✅ Forecast saved for {station_id}")
-
-def main():
-    for station in TOP_STATIONS:
-        forecast_future_rides(station)
-
-if __name__ == "__main__":
-    main()
+    out_df = pd.DataFrame(predictions)
+    out_file = f"{METRICS_PATH}/future_lgbm_lag28_{station_id}.csv"
+    out_df.to_csv(out_file, index=False)
+    print(f"✅ Saved: {out_file}")
