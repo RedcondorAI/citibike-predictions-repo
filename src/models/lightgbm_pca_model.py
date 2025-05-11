@@ -12,8 +12,10 @@ from sklearn.metrics import mean_absolute_error
 from lightgbm import LGBMRegressor
 import hopsworks
 
+# Setup MLflow tracking
 set_mlflow_tracking()
 
+# Connect to Hopsworks
 project = hopsworks.login(
     project=os.environ["HOPSWORKS_PROJECT_NAME"],
     api_key_value=os.environ["HOPSWORKS_API_KEY"]
@@ -61,17 +63,28 @@ def train_pca_model(df, station_id):
     y_pred = model.predict(X_test)
     mae = mean_absolute_error(y_test, y_pred)
 
-    explained_variance = round(sum(pca.explained_variance_ratio_) * 100, 2)
+    explained_variance = float(round(sum(pca.explained_variance_ratio_) * 100, 2))
 
     model_dir = f"{MODELS_DIR}/pca_model_{station_id}"
     os.makedirs(model_dir, exist_ok=True)
     joblib.dump(model, f"{model_dir}/lgbm_model.pkl")
     joblib.dump(pca, f"{model_dir}/pca_transformer.pkl")
 
-    log_model_to_mlflow(model, X_test, EXPERIMENT_NAME, "mae",
-                        f"{MODEL_NAME}_{station_id}", mae,
-                        {"station_id": station_id, "strategy": STRATEGY,
-                         "n_components": N_COMPONENTS, "explained_variance": explained_variance})
+    # ✅ FIXED: Convert all values to standard types
+    log_model_to_mlflow(
+        model=model,
+        input_data=X_test,
+        experiment_name=EXPERIMENT_NAME,
+        metric_name="mae",
+        model_name=f"{MODEL_NAME}_{station_id}",
+        score=float(mae),
+        params={
+            "station_id": station_id,
+            "strategy": STRATEGY,
+            "n_components": int(N_COMPONENTS),
+            "explained_variance": explained_variance
+        }
+    )
 
     pd.DataFrame({
         "hour": station_df.iloc[split_idx:]["hour"],
@@ -89,8 +102,8 @@ def main():
             "station_id": station_id,
             "model": MODEL_NAME,
             "strategy": STRATEGY,
-            "mae": mae,
-            "explained_variance": variance
+            "mae": float(mae),
+            "explained_variance": float(variance)
         })
     pd.DataFrame(results).to_csv(f"{RESULTS_DIR}/lgbm_pca_mae_summary.csv", index=False)
 
