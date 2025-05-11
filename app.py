@@ -144,10 +144,18 @@ except Exception as e:
 if selected_tab == "Historical Predictions":
     st.subheader(f"📊 Historical: {model_option} Model")
     
+    # Group data by day to reduce data points
+    # Convert to datetime if not already done
+    if not pd.api.types.is_datetime64_dtype(df_pred["hour"]):
+        df_pred["hour"] = pd.to_datetime(df_pred["hour"])
+    
+    # Resample to daily data to avoid overcrowding
+    df_daily = df_pred.set_index("hour").resample("D").mean().reset_index()
+    
     # Smooth data for better visualization
-    df_plot = df_pred.copy()
-    df_plot["Predicted Rides"] = df_plot["predicted_rides"].rolling(6).mean()
-    df_plot["Actual Rides"] = df_plot["actual_rides"].rolling(6).mean()
+    df_plot = df_daily.copy()
+    df_plot["Predicted Rides"] = df_plot["predicted_rides"]
+    df_plot["Actual Rides"] = df_plot["actual_rides"]
     
     # Melt for Plotly
     plot_df = df_plot[["hour", "Predicted Rides", "Actual Rides"]].melt(
@@ -160,7 +168,7 @@ if selected_tab == "Historical Predictions":
         x="hour",
         y="Rides",
         color="Type",
-        title=f"{model_option} — Actual vs Predicted for {station_name} (Smoothed)",
+        title=f"{model_option} — Actual vs Predicted for {station_name} (Daily Average)",
         template="plotly_dark"
     )
     
@@ -171,19 +179,24 @@ if selected_tab == "Historical Predictions":
     }
     
     for trace in fig.data:
-        trace.line.width = 2
+        trace.line.width = 2.5
         trace.opacity = 0.85
         trace.line.color = custom_colors.get(trace.name, trace.line.color)
     
     fig.update_layout(
-        height=400,
+        height=500,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color='white'),
         title_font=dict(size=18, color='white'),
         legend_title_text='',
         margin=dict(l=20, r=20, t=40, b=20),
-        xaxis=dict(tickformat="%b %d", tickangle=0),
+        xaxis=dict(
+            tickformat="%b %d",
+            tickangle=0,
+            dtick="M1",  # Show one tick per month
+            ticklabelmode="period"
+        ),
         hovermode="x unified"
     )
     
@@ -202,28 +215,48 @@ if selected_tab == "Historical Predictions":
 elif selected_tab == "Future Forecast":
     st.subheader(f"🔮 Forecast: {model_option} Model")
     
+    # Make sure the date is in datetime format
+    if not pd.api.types.is_datetime64_dtype(df_fore["hour"]):
+        df_fore["hour"] = pd.to_datetime(df_fore["hour"])
+    
+    # Group forecasts by 6-hour intervals to reduce clutter
+    df_fore_grouped = df_fore.copy()
+    df_fore_grouped["hour_group"] = df_fore_grouped["hour"].dt.floor("6H")
+    df_fore_agg = df_fore_grouped.groupby("hour_group")["predicted_rides"].mean().reset_index()
+    df_fore_agg = df_fore_agg.rename(columns={"hour_group": "hour"})
+    
     fig = px.line(
-        df_fore,
+        df_fore_agg,
         x="hour",
         y="predicted_rides",
         labels={"hour": "Time", "predicted_rides": "Predicted Rides"},
-        title=f"{model_option} — 7-Day Forecast for {station_name}",
+        title=f"{model_option} — 7-Day Forecast for {station_name} (6-Hour Intervals)",
         template="plotly_dark"
     )
     
     fig.update_traces(
-        line=dict(color="#4D96FF", width=2),
+        line=dict(color="#4D96FF", width=3),
         opacity=0.85
     )
     
+    # Add markers to make data points clearer
+    fig.update_traces(mode='lines+markers', marker=dict(size=6))
+    
     fig.update_layout(
-        height=400,
+        height=500,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color='white'),
         title_font=dict(size=18, color='white'),
         margin=dict(l=20, r=20, t=40, b=20),
-        xaxis=dict(tickformat="%b %d %H:%M", tickangle=45)
+        xaxis=dict(
+            tickformat="%b %d",
+            tickangle=0,
+            dtick="D1"  # One tick per day
+        ),
+        yaxis=dict(
+            title="Predicted Rides"
+        )
     )
     
     st.plotly_chart(fig, use_container_width=True)
