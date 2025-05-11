@@ -1,7 +1,7 @@
 name: Run Forecasting and Upload Predictions
 
 on:
-  workflow_dispatch:  # Manual trigger for now
+  workflow_dispatch:  # Trigger manually for now
 
 jobs:
   forecast:
@@ -23,23 +23,21 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Forecast Lag28
+      # -------- Current Predictions --------
+      - name: Generate Current Predictions (Lag28, TopK, PCA)
         run: |
-          python src/forecast/forecast_future_lag28.py
-          python src/upload/upload_future_predictions_lag28.py
-          python src/upload/upload_predictions_lag28.py
+          python src/inference/current_prediction_lag28.py
+          python src/inference/current_prediction_topk.py
+          python src/inference/current_prediction_pca.py
 
-      - name: Forecast TopK
+      # -------- Future Forecasts --------
+      - name: Generate Future Forecasts (Lag28, TopK, PCA)
         run: |
-          python src/upload/upload_future_predictions_topk.py
-          python src/upload/upload_predictions_topk.py
+          python src/inference/forecast_future_lag28.py
+          python src/inference/forecast_future_topk.py
+          python src/inference/forecast_future_pca.py
 
-      - name: Forecast PCA
+      # -------- Upload All to Hopsworks --------
+      - name: Upload All Predictions to Hopsworks
         run: |
-          python src/upload/upload_future_predictions_pca.py
-          python src/upload/upload_predictions_pca.py
-          python src/upload/upload_predictions_pca_csv.py
-
-      - name: Forecast Naive
-        run: |
-          python src/upload/upload_predictions_naive.py
+          python src/upload/upload_to_hopsworks_inference.py
