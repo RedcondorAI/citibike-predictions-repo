@@ -313,13 +313,22 @@ elif selected_tab == "Model Summary":
         comparison_df = pd.concat(all_mae_data)
         comparison_df = comparison_df.sort_values("mae")
         
-        # Display as a table
-        st.dataframe(
-            comparison_df[["model", "station_id", "mae"]].rename(
-                columns={"model": "Model", "station_id": "Station", "mae": "MAE"}
-            ),
-            use_container_width=True
+        # # Display as a table
+        # st.dataframe(
+        #     comparison_df[["model", "station_id", "mae"]].rename(
+        #         columns={"model": "Model", "station_id": "Station", "mae": "MAE"}
+        #     ),
+        #     use_container_width=True
+        # )
+        
+        # Prepare ranked display table
+        display_df = comparison_df[["model", "station_id", "mae"]].rename(
+            columns={"model": "Model", "station_id": "Station", "mae": "MAE"}
         )
+        display_df["Rank"] = range(1, len(display_df) + 1)
+        st.dataframe(display_df.set_index("Rank"), use_container_width=True)
+
+        
         
         # Create a bar chart comparison
         fig = px.bar(
