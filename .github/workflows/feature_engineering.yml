@@ -26,14 +26,14 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: 🌐 Step 1: Fetch Recent Raw Data (last 2 months)
+      - name: 🌐 Step 1 Fetch Recent Raw Data (last 2 months)
         run: python src/data/fetch_recent_data.py
 
-      - name: 🧼 Step 2: Preprocess Recent Data
+      - name: 🧼 Step 2 Preprocess Recent Data
         run: python src/data/preprocess_recent_data.py
 
-      - name: 🛠️ Step 3: Engineer Lag + Time Features
+      - name: 🛠️ Step 3 Engineer Lag + Time Features
         run: python src/features/engineer_recent_features.py
 
-      - name: ⬆️ Step 4: Upload New Data to Hopsworks (incremental)
+      - name: ⬆️ Step 4 Upload New Data to Hopsworks (incremental)
         run: python src/upload/upload_recent_to_hopsworks.py
