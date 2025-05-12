@@ -227,10 +227,8 @@ def main():
         df_clean = df_filtered.rename(columns={"mae": "MAE"})[
             ["Model", "Station Name", "Strategy", "MAE"]
         ]
-        
-        df_clean = df_clean.sort_values("Station Name","MAE")
-        df_clean["Rank"] = range(1, len(df_clean) + 1)
-        st.dataframe(df_clean.set_index("Rank"), use_container_width=True)
+        df_clean.index = df_clean.index + 1
+        st.dataframe(df_clean, use_container_width=True)
 
         csv = df_clean.to_csv(index=True).encode("utf-8")
         st.download_button("Download MAE Summary as CSV", csv, "mae_summary_all_models.csv")
