@@ -228,7 +228,7 @@ def main():
             ["Model", "Station Name", "Strategy", "MAE"]
         ]
         
-        df_clean = df_clean.sort_values("staion_id","mae")
+        df_clean = df_clean.sort_values("Station Name","MAE")
         df_clean["Rank"] = range(1, len(df_clean) + 1)
         st.dataframe(df_clean.set_index("Rank"), use_container_width=True)
 
