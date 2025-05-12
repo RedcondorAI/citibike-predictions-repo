@@ -1,13 +1,16 @@
 name: Run Forecasting and Upload Predictions
 
 on:
-  schedule:
-    - cron: '0 7 * * *'   # Every day at 7 AM UTC
-  workflow_dispatch:      # Still supports manual run
+  workflow_run:
+    workflows: ["Train and Register Models"]
+    types:
+      - completed
 
 jobs:
   forecast:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+
     env:
       HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
       HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
@@ -25,21 +28,17 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      # -------- Current Predictions --------
       - name: Generate Current Predictions (Lag28, TopK, PCA)
         run: |
           python src/inference/current_prediction_lag28.py
           python src/inference/current_prediction_topk.py
           python src/inference/current_prediction_pca.py
 
-      # -------- Future Forecasts --------
       - name: Generate Future Forecasts (Lag28, TopK, PCA)
         run: |
           python src/inference/forecast_future_lag28.py
           python src/inference/forecast_future_topk.py
           python src/inference/forecast_future_pca.py
 
-      # -------- Upload All to Hopsworks --------
       - name: Upload All Predictions to Hopsworks
-        run: |
-          python src/upload/upload_to_hopsworks_inference.py
+        run: python src/upload/upload_to_hopsworks_inference.py

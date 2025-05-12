@@ -21,189 +21,150 @@ A fully automated and modular time series forecasting pipeline built using:
 
 ---
 
+## 📅 Full End-to-End Pipeline
+
+### 🔶 Feature Engineering
+
+This pipeline is designed with a **two-phase setup**:
+
+#### 🔹 Phase 1: One-time Historical Bootstrapping
+
+Used to fetch and upload the initial 2+ years of Citi Bike data (2023–April 2025).
+
+```bash
+python src/data/fetch_data.py
+python src/data/preprocess_data.py
+python src/features/engineering_features.py
+python src/upload/upload_features_to_hopsworks.py
+```
+
+This loads the historical backbone of the system into the Hopsworks Feature Store and is only needed **once**.
+
+#### 🔸 Phase 2: Ongoing Automation via GitHub Actions
+
+After the initial upload, all future data ingestion is handled incrementally:
+
+```bash
+python src/data/fetch_recent_data.py
+python src/data/preprocess_recent_data.py
+python src/features/engineer_recent_features.py
+python src/upload/upload_recent_to_hopsworks.py
+```
+
+* ✅ Fetches only the last 2 months of data
+* ✅ Ensures complete lag coverage for new timestamps
+* ✅ Filters out already-uploaded data by comparing timestamps
+
+This pattern lets the system safely **continue evolving without reprocessing the past**, and keeps Hopsworks clean and consistent.
+
+---
+
+### 🔵 Model Training
+
+Triggered automatically after feature upload:
+
+```bash
+python src/models/baseline_model.py
+python src/models/lightgbm_model.py
+python src/models/lightgbm_topk_model.py
+python src/models/lightgbm_pca_model.py
+```
+
+Uploads to Hopsworks:
+
+```bash
+python src/upload/upload_to_hopsworks_other.py
+python src/upload/upload_to_hopsworks_best.py
+python src/upload/upload_to_hopsworks_pca.py
+```
+
+### 🔸 Inference Pipeline
+
+```bash
+python src/inference/current_prediction_*.py
+python src/inference/forecast_future_*.py
+python src/upload/upload_to_hopsworks_inference.py
+```
+
+### 🔹 Streamlit Dashboards
+
+```bash
+streamlit run app/app.py        # Forecast app
+streamlit run app/monitor_app.py  # Monitoring app
+```
+
+---
+
+## 📊 System Architecture
+
+1. ⬇️ Download Citi Bike data (last 2 months)
+2. 💚 Engineer features (lag, time-based)
+3. ⬆️ Upload only new hours to Hopsworks
+4. 🤖 Train 4 models (baseline, lag-28, top-K, PCA)
+5. 🔢 Log everything to MLflow + Hopsworks
+6. 🌎 Forecast 7 days ahead and upload predictions
+7. 📊 Visualize in real-time via Streamlit
+
+---
+
+## ⚙️ GitHub Actions Automation
+
+| Workflow                  | Trigger                    | Description                         |
+| ------------------------- | -------------------------- | ----------------------------------- |
+| `feature_engineering.yml` | Manual / Cron (1st & 15th) | Downloads, cleans, uploads features |
+| `train_models.yml`        | After feature engineering  | Trains and registers models         |
+| `inference.yml`           | After model training       | Generates and uploads predictions   |
+
+---
+
 ## 📁 Directory Structure
 
 ```
 citibike-predictions/
 ├── data/                      # Raw, processed, and prediction data
-├── trained_models/           # Pickled LightGBM/Naive/PCA models
 ├── src/
-│   ├── data/                 # Data fetching & preprocessing
-│   ├── features/             # Feature engineering scripts
-│   ├── models/               # Baseline, Lag28, TopK, PCA
-│   ├── forecast/             # Future forecasts (7-day)
-│   ├── upload/               # Hopsworks upload scripts
-│   └── utils/                # MLflow logger
-├── app/                      # Streamlit dashboard apps
-├── .github/workflows/        # GitHub Actions (CI automation)
-├── .env                      # API keys (not tracked)
+│   ├── data/                 # fetch, fetch_recent, preprocess, preprocess_recent
+│   ├── features/             # engineering_features.py, engineer_recent_features.py
+│   ├── models/               # All model training scripts
+│   ├── inference/            # Prediction and forecasting scripts
+│   ├── upload/               # All upload-to-Hopsworks scripts
+├── app/                      # Streamlit dashboards
+├── .github/workflows/        # GitHub Actions pipelines
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## 📘 Naming Conventions
-
-| Component        | Format Example                           |
-| ---------------- | ---------------------------------------- |
-| Model files      | `lgbm_lag28_model_JC115.pkl`             |
-| Prediction files | `future_lgbm_topk_HB102.csv`             |
-| Hopsworks FG     | `citibike_features_dataset`              |
-| Prediction FG    | `citibike_predictions_dataset_jc115`     |
-| MLflow Names     | `citibike-lgbm-pca`, `citibike-baseline` |
-
----
-
-## 🔧 Local Setup
-
-### Step 1: Clone and Install
-
-```bash
-git clone https://github.com/yourusername/citibike-predictions.git
-cd citibike-predictions
-conda create -n citibike python=3.10
-conda activate citibike
-pip install -r requirements.txt
-```
-
-### Step 2: Configure `.env`
-
-```env
-HOPSWORKS_PROJECT_NAME=your_project_name
-HOPSWORKS_API_KEY=your_api_key
-MLFLOW_TRACKING_URI=https://dagshub.com/youruser/yourrepo.mlflow
-```
-
----
-
-## 📥 Data Pipeline
-
-### ✅ 1. Fetch & Clean Data
-
-```bash
-python src/data/fetch_data.py
-python src/data/preprocess_data.py
-```
-
-### 🧠 2. Engineer Features
-
-```bash
-python src/features/engineering_features.py
-```
-
----
-
-## 🔀 Model Training
-
-Run any of the following:
-
-| Model                | Script                              |
-| -------------------- | ----------------------------------- |
-| Naive (baseline)     | `src/models/baseline_model.py`      |
-| Full Lag-28 LightGBM | `src/models/lightgbm_model.py`      |
-| Top-K Feature Model  | `src/models/lightgbm_topk_model.py` |
-| PCA-based Model      | `src/models/lightgbm_pca_model.py`  |
-
----
-
-## 🔮 Inference & Forecasting
-
-Predict future rides (7-day horizon):
-
-```bash
-python src/forecast/forecast_future_lag28.py
-python src/forecast/forecast_future_topk.py
-python src/forecast/forecast_future_pca.py
-```
-
----
-
-## ☁️ Upload to Hopsworks
-
-Upload features, models, and predictions:
-
-```bash
-python src/upload/upload_to_hopsworks_best.py
-python src/upload/upload_to_hopsworks_other.py
-python src/upload/upload_to_hopsworks_pca.py
-```
-
----
-
-## ⚙️ GitHub Actions Automation
-
-| Workflow        | Purpose                       |
-| --------------- | ----------------------------- |
-| `train.yml`     | Retrain + upload all models   |
-| `inference.yml` | Forecast + upload predictions |
-
-To run manually:
-
-```bash
-gh workflow run train.yml
-```
-
----
-
-## 📊 Streamlit Dashboards
-
-| 🔗 Link                                                      | Purpose               |
-| ------------------------------------------------------------ | --------------------- |
-| 🚀 [Forecast App](https://your-forecast-app.streamlit.app/)  | Live ride predictions |
-| 📉 [Monitoring App](https://your-monitor-app.streamlit.app/) | Model performance     |
-
-To launch locally:
-
-```bash
-streamlit run app/app.py
-```
-
----
-
-## 📈 MLflow Logging
-
-Each model run logs:
-
-* MAE, strategy, model type
-* Feature count / PCA explained variance
-* Signatures + input examples
-
-Visit: [MLflow Tracking UI](https://dagshub.com/youruser/yourrepo.mlflow)
-
----
-
-## ✅ Final Checklist
-
-* [x] Historical data (2023–2025) used
-* [x] Models logged via MLflow
-* [x] Hopsworks upload working
-* [x] Streamlit dashboards functional
-* [x] GitHub Actions integrated
-
----
-
-## 🧪 Quick Test
-
-```bash
-python src/models/baseline_model.py
-python src/forecast/forecast_future_lag28.py
-```
-
----
-
-## 📌 Data & Credits
+## 📃 Data Sources & Tools
 
 * 🚲 [Citi Bike NYC Trip Data](https://citibikenyc.com/system-data)
-* 🌐 [Hopsworks Feature Store](https://www.hopsworks.ai/)
-* 🔬 [MLflow Tracking](https://mlflow.org/)
-* 🌟 Icons by [SimpleIcons](https://simpleicons.org/)
+* ☁️ [Hopsworks Feature Store](https://www.hopsworks.ai/)
+* 🔬 [MLflow Logging](https://mlflow.org/)
+* 💊 [LightGBM](https://lightgbm.readthedocs.io/)
+* 🌐 [Streamlit](https://streamlit.io/)
 
 ---
 
-## 👤 Author & Contact
+## 🎯 Final Highlights
 
-Created with ❤️ by \[Your Name].
-Open an issue or contact via GitHub for questions.
+* [x] Modular and reproducible ML pipeline
+* [x] Safe, incremental feature updates
+* [x] Model versioning and performance monitoring
+* [x] Automated CI/CD from data to dashboard
+* [x] Public forecast and monitoring apps
 
 ---
+
+## 🚀 Streamlit Apps
+
+| 🔗 Link                                                   | Purpose                 |
+| --------------------------------------------------------- | ----------------------- |
+| [Forecast App](https://your-forecast-app.streamlit.app/)  | Live hourly predictions |
+| [Monitoring App](https://your-monitor-app.streamlit.app/) | MAE & model drift       |
+
+---
+
+## 💼 Author
+
+Created with ❤️ by RedcondorAI

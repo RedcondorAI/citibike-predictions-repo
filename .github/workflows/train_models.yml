@@ -1,13 +1,16 @@
 name: Train and Register Models
 
 on:
-  schedule:
-    - cron: '0 6 * * *'   # Every day at 6 AM UTC
-  workflow_dispatch:      # You can still trigger manually
+  workflow_run:
+    workflows: ["Run Recent Feature Engineering Pipeline"]
+    types:
+      - completed
 
 jobs:
   train:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+
     env:
       HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
       HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
@@ -38,11 +41,11 @@ jobs:
       - name: Train LightGBM PCA Model
         run: python src/models/lightgbm_pca_model.py
 
-      - name: Upload Baseline and TopK Models to Hopsworks
+      - name: Upload Baseline and TopK Models
         run: python src/upload/upload_to_hopsworks_other.py
 
-      - name: Upload Lag28 Model to Hopsworks
+      - name: Upload Lag28 Model
         run: python src/upload/upload_to_hopsworks_best.py
 
-      - name: Upload PCA Model to Hopsworks
+      - name: Upload PCA Model
         run: python src/upload/upload_to_hopsworks_pca.py
