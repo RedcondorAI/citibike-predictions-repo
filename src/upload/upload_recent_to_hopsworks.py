@@ -16,6 +16,7 @@ def upload_incremental():
 
     # Load engineered data
     df = pd.read_csv(INPUT_PATH, parse_dates=["hour"])
+    df["hour"] = pd.to_datetime(df["hour"]).dt.tz_localize("UTC")
     print(f"📈 Loaded {len(df)} rows from {INPUT_PATH}")
 
     # Get existing feature group
