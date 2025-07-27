@@ -73,7 +73,7 @@ def main():
             input_data=X_train,
             experiment_name="citibike-baseline",
             metric_name="mae",
-            model_name="BaselineModelNaiveLag_1",
+            model_name="BaselineModelNaiveLag",
             score=mae,
             params={"station_id": station_id, "strategy": "naive_lag_1"},
         )
