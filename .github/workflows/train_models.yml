@@ -1,10 +1,11 @@
 name: Train and Register Models
 
 on:
-  workflow_run:
-    workflows: ["Run Recent Feature Engineering Pipeline"]
-    types:
-      - completed
+  workflow_dispatch:
+  # workflow_run:
+  #   workflows: ["Run Recent Feature Engineering Pipeline"]
+  #   types:
+  #     - completed
 
 jobs:
   train:

@@ -1,10 +1,11 @@
 name: Run Forecasting and Upload Predictions
 
 on:
-  workflow_run:
-    workflows: ["Train and Register Models"]
-    types:
-      - completed
+  workflow_dispatch:
+  # workflow_run:
+  #   workflows: ["Train and Register Models"]
+  #   types:
+  #     - completed
 
 jobs:
   forecast:
