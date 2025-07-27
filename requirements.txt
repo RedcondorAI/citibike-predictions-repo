@@ -16,7 +16,7 @@ statsmodels
 holidays
 
 # MLOps
-mlflow
+mlflow==2.9.2
 hopsworks[python]==4.2.*
 confluent-kafka
 pyarrow==19.0.1
