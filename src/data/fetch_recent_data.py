@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 DATA_DIR = "data/raw"
 ZIP_URL_PREFIX = "https://s3.amazonaws.com/tripdata/"
 
-def get_recent_file_names(months_back=2):
+def get_recent_file_names(months_back=5):
     """Return JC filenames for the last `months_back` months."""
     now = datetime.now()
     file_names = []
