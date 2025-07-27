@@ -45,7 +45,7 @@ def download_and_extract(file_name, output_dir=DATA_DIR):
         print(f"❌ Error downloading {file_name}: {e}")
 
 if __name__ == "__main__":
-    files = get_recent_file_names(months_back=2)
+    files = get_recent_file_names(months_back=5)
     print(f"🗂️  Target files: {files}")
     for file_name in files:
         download_and_extract(file_name)
