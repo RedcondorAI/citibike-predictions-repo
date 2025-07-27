@@ -56,7 +56,7 @@ def log_model_to_mlflow(
                 artifact_path="model_artifact",
                 signature=signature,
                 input_example=input_data,
-                # registered_model_name=model_name,
+                registered_model_name=model_name,
             )
             logger.info(f"Model logged with name: {model_name}")
             return model_info
