@@ -1,7 +1,7 @@
 # 🚲 Citi Bike Trip Prediction System
 
 ![Python](https://img.shields.io/badge/python-3.10-blue?logo=python)
-![License](https://img.shields.io/github.com/RedcondorAI/citibike-predictions-repo.git))
+![License](https://img.shields.io/github/license/RedcondorAI/citibike-predictions-repo)
 ![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B?logo=streamlit\&logoColor=white)
 ![Hopsworks](https://img.shields.io/badge/Feature%20Store-Hopsworks-20C997?logo=data\:image/svg+xml;base64,)
 
