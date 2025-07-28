@@ -31,7 +31,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Train Baseline Model
-        run: python src/models/baseline_model.py
+        run: python src/models/lightgbm_model.py #baseline_model
 
       - name: Train LightGBM Lag-28 Model
         run: python src/models/lightgbm_model.py
