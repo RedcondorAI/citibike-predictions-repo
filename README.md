@@ -160,8 +160,10 @@ citibike-predictions/
 
 | 🔗 Link                                                   | Purpose                 |
 | --------------------------------------------------------- | ----------------------- |
-| [Forecast App](https://citibike-predictions-repo-6zyzt3rw6uiqk6eacxxyem.streamlit.app/)  | Live hourly predictions |
-| [Monitoring App](https://citibike-predictions-repo-vf7vmncg8qzw3meau7m3uk.streamlit.app/) | MAE & model drift       |
+| 📈 [Prediction App](https://citibike-predictions-repo-6zyzt3rw6uiqk6eacxxyem.streamlit.app/))  | Live hourly predictions |
+| 🧭 [Monitoring App](https://citibike-predictions-repo-vf7vmncg8qzw3meau7m3uk.streamlit.app/)   | MAE & model drift       |
+
+
 
 ---
 
