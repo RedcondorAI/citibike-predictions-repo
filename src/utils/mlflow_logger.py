@@ -10,29 +10,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# def set_mlflow_tracking():
-#     """
-#     Set up MLflow tracking URI using environment variables.
-#     """
-#     uri = os.environ["MLFLOW_TRACKING_URI"]
-#     mlflow.set_tracking_uri(uri)
-#     logger.info("MLflow tracking URI set.")
-#     return mlflow
 def set_mlflow_tracking():
     """
-    Set MLflow tracking URI using environment variables.
-    If MLFLOW_TRACKING_URI is not set, rely on Hopsworks default.
+    Set up MLflow tracking URI using environment variables.
     """
-    uri = os.environ.get("MLFLOW_TRACKING_URI")
-
-    if uri:
-        mlflow.set_tracking_uri(uri)
-        logger.info(f"MLflow tracking URI set to: {uri}")
-    else:
-        logger.info("MLFLOW_TRACKING_URI not found, using Hopsworks default tracking URI.")
-
+    uri = os.environ["MLFLOW_TRACKING_URI"]
+    mlflow.set_tracking_uri(uri)
+    logger.info("MLflow tracking URI set.")
     return mlflow
-
 
 
 def log_model_to_mlflow(
